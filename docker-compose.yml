@@ -1,0 +1,20 @@
+services:
+  exchange_rate:
+    image: golang:1.25.7-alpine
+    environment:
+      TZ: Asia/Taipei
+      GO111MODULE: on
+      GOPROXY: off  # 離線模式
+      GOPATH: /go
+    volumes:
+      - .:/srv/app
+      - ~/go/pkg/mod:/go/pkg/mod:ro # 映射本地的 mod 到容器內
+    working_dir: /srv/app
+    networks:
+      - my-net
+    command: ["sh", "-c", "go run -mod=readonly main.go"] # 只允許執行 main.go，不會做任何更新的相關動作
+    restart: unless-stopped
+
+networks:
+  my-net:
+    driver: bridge
