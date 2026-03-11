@@ -1,6 +1,6 @@
 services:
   exchange_rate:
-    image: golang:1.25.7-alpine
+    image: golang:1.26.1-alpine
     environment:
       TZ: Asia/Taipei
       GO111MODULE: on
