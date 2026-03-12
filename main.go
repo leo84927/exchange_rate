@@ -5,6 +5,7 @@ import (
 	"exchange_rate/config"
 	"exchange_rate/handle"
 	"log"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -15,6 +16,8 @@ import (
 )
 
 func init() {
+	// 啟動時先清理，防止上次異常結束殘留
+	os.Remove("/tmp/ready")
 	godotenv.Load()
 	config.LoadRabbitMQ()
 }
@@ -26,15 +29,30 @@ func main() {
 	cm := rabbitmq.NewConnectionManager(config.GetRabbitMQConfig().Config)
 	defer cm.Close()
 
+	connReady := make(chan struct{})
 	consumer := cm.NewConsumer(config.GetRabbitMQConfig().Queue.Name, "", 5, 20*time.Second)
 
 	group, groupCtx := errgroup.WithContext(ctx)
 
 	group.Go(func() error {
+		// 建立連線＆拓樸
+		if err := cm.InitTopology(config.GetRabbitMQConfig().Topology); err != nil {
+			return err
+		}
+
+		// 建立 ready 檔案用來做 health check
+		os.WriteFile("/tmp/ready", []byte("ok"), 0644)
+
+		// 連線就緒
+		log.Println("RabbitMQ connection and topology ready")
+		close(connReady)
+
 		return cm.WatchConnAndRetry(groupCtx)
 	})
 
+	// 拓樸建立後才能訂閱 queue 並常駐 consumer
 	group.Go(func() error {
+		<-connReady
 		return consumer.WaitForConsume(groupCtx, handle.MessageHandler)
 	})
 
