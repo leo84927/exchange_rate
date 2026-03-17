@@ -2,13 +2,29 @@ package handle
 
 import (
 	"context"
-	"encoding/json"
 	"exchange_rate/config"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 
-	"google.golang.org/genai"
+	exchange_rate_proto "buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go/exchange_rate"
+
+	"github.com/tidwall/gjson"
 )
+
+type ExchangeRateHandler interface {
+	Handle(ctx context.Context, pair *exchange_rate_proto.CurrencyPair)
+}
+
+type FiatCurrencyHandler struct{}
+
+type CryptoCurrencyHandler struct{}
+
+var handlerRegistry = map[string]ExchangeRateHandler{
+	"exchange_rate.fiat":   &FiatCurrencyHandler{},
+	"exchange_rate.crypto": &CryptoCurrencyHandler{},
+}
 
 type ExchangeRate struct {
 	BaseCurrency    string `json:"base_currency"`
@@ -16,65 +32,48 @@ type ExchangeRate struct {
 	Rate            string `json:"rate"`
 }
 
-func GetExchangeRate(ctx context.Context, base, counter string) (ExchangeRate, error) {
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey: config.GeminiApiKey,
-	})
+func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *exchange_rate_proto.CurrencyPair) {
+	url := fmt.Sprintf("https://v6.exchangerate-api.com/v6/latest/%s", pair.Base)
+	log.Println("GetExchangeRate url:", url)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.Printf("GetExchangeRate NewClient failed, err: %v\n", err)
-		return ExchangeRate{}, err
+		// TODO Publish 到 rabbitmq
+		log.Printf("GetExchangeRate NewRequest failed, err: %v\n", err)
+		return
 	}
 
-	prompt := fmt.Sprintf("Please get the %s/%s exchange rate from https://www.google.com/finance/quote/%s-%s", base, counter, base, counter)
-	config := &genai.GenerateContentConfig{
-		// 指定 MIME type
-		ResponseMIMEType: "application/json",
-		// 指定資料格式
-		ResponseJsonSchema: map[string]any{
-			"type": "object",
-			// 必須有的 key
-			"required": []string{
-				"base_currency",
-				"counter_currency",
-				"rate",
-			},
-			// 指定各個 key 的型別
-			"properties": map[string]any{
-				"base_currency": map[string]any{
-					"type":        "string",
-					"description": "base currency",
-				},
-				"counter_currency": map[string]any{
-					"type":        "string",
-					"description": "counter currency",
-				},
-				"rate": map[string]any{
-					"type":        "string",
-					"description": "rate",
-				},
-			},
-		},
-	}
-	result, err := client.Models.GenerateContent(
-		ctx,
-		"gemini-3.1-flash-lite-preview",
-		genai.Text(prompt),
-		config,
-	)
+	token := fmt.Sprintf("Bearer %s", config.ExchangeRateApiKey())
+	log.Println("GetExchangeRate token:", token)
+	req.Header.Set("Authorization", token)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("GetExchangeRate GenerateContent failed, err: %v\n", err)
-		return ExchangeRate{}, err
+		// TODO Publish 到 rabbitmq
+		log.Printf("GetExchangeRate send request failed, err: %v\n", err)
+		return
 	}
+	defer resp.Body.Close()
 
-	log.Println("GenerateContent Success, result:", result.Text())
-
-	// publish 前解析一次，確保格式正確
-	var exchangeRate ExchangeRate
-	err = json.Unmarshal([]byte(result.Text()), &exchangeRate)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("GetExchangeRate json unmarshal failed, err: %v\n", err)
-		return ExchangeRate{}, err
+		// TODO Publish 到 rabbitmq
+		log.Printf("GetExchangeRate get request failed, err: %v\n", err)
+		return
+	}
+	log.Printf("Status: %s\n", resp.Status)
+
+	result := gjson.GetBytes(body, "result").String()
+	if result != "success" {
+		// TODO Publish 到 rabbitmq
+		log.Printf("GetExchangeRate result error, msg: %s\n", gjson.GetBytes(body, "error-type").String())
+		return
 	}
 
-	return exchangeRate, nil
+	// return ExchangeRate{
+	// 	BaseCurrency:    gjson.GetBytes(body, "base_code").String(),
+	// 	CounterCurrency: gjson.GetBytes(body, "conversion_rates").String(),
+	// }, nil
 }
+
+func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *exchange_rate_proto.CurrencyPair) {}
