@@ -12,9 +12,9 @@ import (
 var rabbitmqCfg RabbitMQ
 
 type RabbitMQ struct {
-	Config   *rabbitmq.Config
-	Topology rabbitmq.Topology
-	Queue    rabbitmq.Queue
+	Config            *rabbitmq.Config
+	Topology          rabbitmq.Topology
+	ExchangeRateQueue rabbitmq.Queue
 }
 
 func LoadRabbitMQ() {
@@ -39,12 +39,10 @@ func LoadRabbitMQ() {
 		topologyMaxElapsed = 20 * time.Second
 	}
 
-	queue := RabbitMQ{
-		Queue: rabbitmq.Queue{
-			Name: os.Getenv("RABBITMQ_EXCHANGE_RATE_QUEUE"),
-			Keys: []string{
-				os.Getenv("RABBITMQ_EXCHANGE_RATE_KEY"),
-			},
+	exchangeRateQueue := rabbitmq.Queue{
+		Name: os.Getenv("RABBITMQ_EXCHANGE_RATE_QUEUE"),
+		Keys: []string{
+			os.Getenv("RABBITMQ_EXCHANGE_RATE_KEY"),
 		},
 	}
 	rabbitmqCfg = RabbitMQ{
@@ -64,12 +62,12 @@ func LoadRabbitMQ() {
 				Kind: os.Getenv("RABBITMQ_EXCHANGE_KIND"),
 			},
 			Queues: []rabbitmq.Queue{
-				queue.Queue,
+				exchangeRateQueue,
 			},
 			MaxRetries:     uint(topologyMaxRetries),
 			MaxElpasedTime: topologyMaxElapsed,
 		},
-		Queue: queue.Queue,
+		ExchangeRateQueue: exchangeRateQueue,
 	}
 }
 

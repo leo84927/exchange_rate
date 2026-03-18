@@ -30,7 +30,7 @@ func main() {
 	defer cm.Close()
 
 	connReady := make(chan struct{})
-	consumer := cm.NewConsumer(config.GetRabbitMQConfig().Queue.Name, "", 5, 20*time.Second)
+	consumer := cm.NewConsumer(config.GetRabbitMQConfig().ExchangeRateQueue.Name, "", 5, 20*time.Second)
 
 	group, groupCtx := errgroup.WithContext(ctx)
 

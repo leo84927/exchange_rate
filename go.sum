@@ -1,5 +1,7 @@
 buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260317042323-d9cfd022d7a9.1 h1:ad28I4vHk5KZsSCpnW9Q7a8aLlap6RQngAKJBMxUUUE=
 buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260317042323-d9cfd022d7a9.1/go.mod h1:NFHp6NcKkJOUZY5R9ibniCf77ygufsvl/dCiujGXg5o=
+buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260317062320-08ad9f271bd1.1 h1:PQc4sM05hVz5aXvdFF9AsQ2MWBm0V35me0BkQP8FN5A=
+buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260317062320-08ad9f271bd1.1/go.mod h1:NFHp6NcKkJOUZY5R9ibniCf77ygufsvl/dCiujGXg5o=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
 github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
@@ -8,6 +10,8 @@ github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
 github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
 github.com/leo84927/rabbitmq/v2 v2.1.0 h1:S/A5VqL9s0E5yeJGUGMLrT9GA+Go/WKxEb0omSmXLTI=
 github.com/leo84927/rabbitmq/v2 v2.1.0/go.mod h1:4+14jrJXWWigm/qWuLTi7lPRZOcIYmn2P/QamcEljxw=
+github.com/leo84927/rabbitmq/v2 v2.1.1 h1:p97qSrLfP41x6/2hqIxwcFlbQGEKfwlmXU73hbLZL+0=
+github.com/leo84927/rabbitmq/v2 v2.1.1/go.mod h1:4+14jrJXWWigm/qWuLTi7lPRZOcIYmn2P/QamcEljxw=
 github.com/rabbitmq/amqp091-go v1.10.0 h1:STpn5XsHlHGcecLmMFCtg7mqq0RnD+zFr4uzukfVhBw=
 github.com/rabbitmq/amqp091-go v1.10.0/go.mod h1:Hy4jKW5kQART1u+JkDTF9YYOQUHXqMuhrgxOEeS7G4o=
 github.com/tidwall/gjson v1.18.0 h1:FIDeeyB800efLX89e5a8Y0BNH+LOngJyGrIWxG2FKQY=
