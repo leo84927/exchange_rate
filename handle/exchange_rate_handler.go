@@ -10,6 +10,7 @@ import (
 	"time"
 
 	erp "buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go/exchange_rate"
+	mqp "buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go/rabbitmq"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/leo84927/rabbitmq/v2"
@@ -87,7 +88,7 @@ func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair
 	}
 
 	for _, counter := range pair.Counter {
-		rate := gjson.GetBytes(body, "conversion_rates."+counter)
+		rate := gjson.GetBytes(body, "conversion_rates."+counter.String())
 		if !rate.Exists() {
 			publishError(
 				"FiatCurrencyHandler exchange rate not exists",
@@ -182,10 +183,20 @@ func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPa
 func publishError(errMsg string, publisher rabbitmq.PublishHandler) {
 	log.Println(errMsg)
 
-	err := publisher(
+	body, err := protojson.Marshal(&mqp.Envelope{
+		Type:   mqp.EnvelopeType_TELEGRAM_ERROR,
+		Data:   errMsg,
+		SentAt: time.Now().Unix(),
+	})
+	if err != nil {
+		log.Printf("Publish to telegram, protojson Marshal failed, err: %v\n", err)
+		return
+	}
+
+	err = publisher(
 		config.GetRabbitMQConfig().Topology.Exchange.Name,
 		"telegram.error",
-		[]byte(errMsg),
+		body,
 		3,
 		5*time.Second,
 	)
@@ -194,14 +205,24 @@ func publishError(errMsg string, publisher rabbitmq.PublishHandler) {
 		return
 	}
 
-	log.Println("Publish error message to telegram success")
+	log.Println("Publish error message to telegram finish")
 }
 
 func publishSuccess(msg []byte, publisher rabbitmq.PublishHandler) {
-	err := publisher(
+	body, err := protojson.Marshal(&mqp.Envelope{
+		Type:   mqp.EnvelopeType_TELEGRAM_SUCCESS_EXCHANGE_RATE,
+		Data:   string(msg),
+		SentAt: time.Now().Unix(),
+	})
+	if err != nil {
+		log.Printf("Publish to telegram, protojson Marshal failed, err: %v\n", err)
+		return
+	}
+
+	err = publisher(
 		config.GetRabbitMQConfig().Topology.Exchange.Name,
 		"telegram.success",
-		msg,
+		body,
 		3,
 		5*time.Second,
 	)
@@ -210,5 +231,5 @@ func publishSuccess(msg []byte, publisher rabbitmq.PublishHandler) {
 		return
 	}
 
-	log.Println("Publish success message to telegram success")
+	log.Println("Publish success message to telegram finish")
 }

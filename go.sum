@@ -2,6 +2,14 @@ buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-2026031704
 buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260317042323-d9cfd022d7a9.1/go.mod h1:NFHp6NcKkJOUZY5R9ibniCf77ygufsvl/dCiujGXg5o=
 buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260317062320-08ad9f271bd1.1 h1:PQc4sM05hVz5aXvdFF9AsQ2MWBm0V35me0BkQP8FN5A=
 buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260317062320-08ad9f271bd1.1/go.mod h1:NFHp6NcKkJOUZY5R9ibniCf77ygufsvl/dCiujGXg5o=
+buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260318062731-03dab309500d.1 h1:MRNXDGTe3vMNL5HBGB9vYc/+0YPf3dTrB8AWTEGTnbU=
+buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260318062731-03dab309500d.1/go.mod h1:NFHp6NcKkJOUZY5R9ibniCf77ygufsvl/dCiujGXg5o=
+buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260320020350-0d2487440541.1 h1:uZQ+NXvEhr7UuDWRpKVW3pZmKf8fcXiAHWEp8cLS9XM=
+buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260320020350-0d2487440541.1/go.mod h1:NFHp6NcKkJOUZY5R9ibniCf77ygufsvl/dCiujGXg5o=
+buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260320021508-a05aa57d34de.1 h1:03T7ti0uRm/da8IqzXp6Q3iT1SUCRIBUl/0OWyKcnxY=
+buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260320021508-a05aa57d34de.1/go.mod h1:NFHp6NcKkJOUZY5R9ibniCf77ygufsvl/dCiujGXg5o=
+buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260320024256-2c451b82b432.1 h1:Ka47JF/ILVgAIQv/ew6xA24rFNXTnmK0vGBJKhT6iqU=
+buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260320024256-2c451b82b432.1/go.mod h1:NFHp6NcKkJOUZY5R9ibniCf77ygufsvl/dCiujGXg5o=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
 github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
