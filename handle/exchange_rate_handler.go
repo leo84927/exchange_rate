@@ -52,7 +52,7 @@ func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair
 	}
 
 	// set header
-	token := fmt.Sprintf("Bearer %s", config.ExchangeRateApiKey())
+	token := fmt.Sprintf("Bearer %s", config.ExchangeRateApiKey)
 	req.Header.Set("Authorization", token)
 
 	// send request
