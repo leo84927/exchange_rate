@@ -6,7 +6,7 @@ import (
 
 	erp "buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go/exchange_rate"
 
-	"github.com/leo84927/rabbitmq/v2"
+	"github.com/leo84927/core/rabbitmq"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
