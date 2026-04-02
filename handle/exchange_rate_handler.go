@@ -41,7 +41,7 @@ func newHandlerRegistry(publisher rabbitmq.PublishHandler) map[erp.CurrencyType]
 func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair) {
 	// build request
 	url := fmt.Sprintf("https://v6.exchangerate-api.com/v6/latest/%s", pair.Base)
-	log.Println("FiatCurrencyHandler url:", url)
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		publishError(
