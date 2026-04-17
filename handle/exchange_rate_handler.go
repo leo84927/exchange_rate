@@ -65,7 +65,9 @@ func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair
 		)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	// get response
 	body, err := io.ReadAll(resp.Body)
@@ -139,7 +141,9 @@ func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPa
 			)
 			return
 		}
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 
 		// get response
 		body, err := io.ReadAll(resp.Body)
