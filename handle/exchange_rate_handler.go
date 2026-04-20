@@ -45,6 +45,7 @@ func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		publishError(
+			ctx,
 			fmt.Sprintf("FiatCurrencyHandler NewRequest failed, err: %v", err),
 			f.publisher,
 		)
@@ -60,6 +61,7 @@ func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair
 	resp, err := client.Do(req)
 	if err != nil {
 		publishError(
+			ctx,
 			fmt.Sprintf("FiatCurrencyHandler send request failed, err: %v", err),
 			f.publisher,
 		)
@@ -73,6 +75,7 @@ func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		publishError(
+			ctx,
 			fmt.Sprintf("FiatCurrencyHandler get request failed, err: %v", err),
 			f.publisher,
 		)
@@ -83,6 +86,7 @@ func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair
 	result := gjson.GetBytes(body, "result").String()
 	if result != "success" {
 		publishError(
+			ctx,
 			fmt.Sprintf("FiatCurrencyHandler API result error, msg: %s", gjson.GetBytes(body, "error-type").String()),
 			f.publisher,
 		)
@@ -93,6 +97,7 @@ func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair
 		rate := gjson.GetBytes(body, "conversion_rates."+counter.String())
 		if !rate.Exists() {
 			publishError(
+				ctx,
 				"FiatCurrencyHandler exchange rate not exists",
 				f.publisher,
 			)
@@ -106,6 +111,7 @@ func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair
 		})
 		if err != nil {
 			publishError(
+				ctx,
 				fmt.Sprintf("FiatCurrencyHandler protojson marshal failed, err: %v", err),
 				f.publisher,
 			)
@@ -113,7 +119,7 @@ func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair
 		}
 
 		// Publish 成功的結果到 rabbitmq
-		publishSuccess(successBody, f.publisher)
+		publishSuccess(ctx, successBody, f.publisher)
 	}
 }
 
@@ -125,6 +131,7 @@ func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPa
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			publishError(
+				ctx,
 				fmt.Sprintf("CryptoCurrencyHandler NewRequest failed, err: %v", err),
 				c.publisher,
 			)
@@ -136,6 +143,7 @@ func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPa
 		resp, err := client.Do(req)
 		if err != nil {
 			publishError(
+				ctx,
 				fmt.Sprintf("CryptoCurrencyHandler send request failed, err: %v", err),
 				c.publisher,
 			)
@@ -149,6 +157,7 @@ func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPa
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			publishError(
+				ctx,
 				fmt.Sprintf("CryptoCurrencyHandler get request failed, err: %v", err),
 				c.publisher,
 			)
@@ -160,6 +169,7 @@ func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPa
 		price := gjson.GetBytes(body, "price")
 		if !symbol.Exists() || !price.Exists() {
 			publishError(
+				ctx,
 				fmt.Sprintf("CryptoCurrencyHandler API result error, body: %s", string(body)),
 				c.publisher,
 			)
@@ -173,6 +183,7 @@ func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPa
 		})
 		if err != nil {
 			publishError(
+				ctx,
 				fmt.Sprintf("CryptoCurrencyHandler protojson marshal failed, err: %v", err),
 				c.publisher,
 			)
@@ -180,11 +191,11 @@ func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPa
 		}
 
 		// Publish 成功的結果到 rabbitmq
-		publishSuccess(successBody, c.publisher)
+		publishSuccess(ctx, successBody, c.publisher)
 	}
 }
 
-func publishError(errMsg string, publisher rabbitmq.PublishHandler) {
+func publishError(ctx context.Context, errMsg string, publisher rabbitmq.PublishHandler) {
 	log.Println(errMsg)
 
 	body, err := protojson.Marshal(&mqp.Envelope{
@@ -198,6 +209,7 @@ func publishError(errMsg string, publisher rabbitmq.PublishHandler) {
 	}
 
 	err = publisher(
+		ctx,
 		config.GetRabbitMQConfig().Topology.Exchange.Name,
 		"telegram.error",
 		body,
@@ -212,7 +224,7 @@ func publishError(errMsg string, publisher rabbitmq.PublishHandler) {
 	log.Println("Publish error message to telegram finish")
 }
 
-func publishSuccess(msg []byte, publisher rabbitmq.PublishHandler) {
+func publishSuccess(ctx context.Context, msg []byte, publisher rabbitmq.PublishHandler) {
 	body, err := protojson.Marshal(&mqp.Envelope{
 		Type:   mqp.EnvelopeType_TELEGRAM_SUCCESS_EXCHANGE_RATE,
 		Data:   string(msg),
@@ -224,6 +236,7 @@ func publishSuccess(msg []byte, publisher rabbitmq.PublishHandler) {
 	}
 
 	err = publisher(
+		ctx,
 		config.GetRabbitMQConfig().Topology.Exchange.Name,
 		"telegram.success",
 		body,
