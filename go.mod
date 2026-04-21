@@ -3,8 +3,8 @@ module exchange_rate
 go 1.26.1
 
 require (
-	buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260331022012-37a90c7dc0d7.1
-	github.com/leo84927/core v1.2.0
+	buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260420071308-c2dd85fa7562.1
+	github.com/leo84927/core v1.3.1
 	github.com/rotisserie/eris v0.5.4
 	github.com/tidwall/gjson v1.18.0
 	golang.org/x/sync v0.20.0

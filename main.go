@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"exchange_rate/config"
 	"exchange_rate/handle"
 	"fmt"
 	"log"
@@ -13,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/leo84927/core/config"
 	"github.com/leo84927/core/logger"
 	"github.com/leo84927/core/rabbitmq"
 	"github.com/rotisserie/eris"
@@ -22,8 +22,8 @@ import (
 func init() {
 	// 啟動時先清理，防止上次異常結束殘留
 	if err := os.Remove("/tmp/ready"); err != nil && !os.IsNotExist(err) {
-        panic(err)
-    }
+		panic(err)
+	}
 }
 
 // 包裝 errgroup，就可以不用每個 goroutine 都宣告 defer recover
@@ -74,7 +74,7 @@ func main() {
 	defer cm.Close()
 
 	connReady := make(chan struct{})
-	consumer := cm.NewConsumer(config.GetRabbitMQConfig().ExchangeRateQueue.Name, "", 5, 20*time.Second)
+	consumer := cm.NewConsumer(config.GetRabbitMQConfig().ServiceQueue.Name, "", 5, 20*time.Second)
 
 	group, groupCtx := errgroup.WithContext(ctx)
 

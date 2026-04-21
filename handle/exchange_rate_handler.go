@@ -13,6 +13,7 @@ import (
 	mqp "buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go/rabbitmq"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	coreconfig "github.com/leo84927/core/config"
 	"github.com/leo84927/core/rabbitmq"
 	"github.com/tidwall/gjson"
 )
@@ -210,7 +211,7 @@ func publishError(ctx context.Context, errMsg string, publisher rabbitmq.Publish
 
 	err = publisher(
 		ctx,
-		config.GetRabbitMQConfig().Topology.Exchange.Name,
+		coreconfig.GetRabbitMQConfig().Topology.Exchange.Name,
 		"telegram.error",
 		body,
 		3,
@@ -237,7 +238,7 @@ func publishSuccess(ctx context.Context, msg []byte, publisher rabbitmq.PublishH
 
 	err = publisher(
 		ctx,
-		config.GetRabbitMQConfig().Topology.Exchange.Name,
+		coreconfig.GetRabbitMQConfig().Topology.Exchange.Name,
 		"telegram.success",
 		body,
 		3,
