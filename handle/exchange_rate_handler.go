@@ -5,7 +5,7 @@ import (
 	"exchange_rate/config"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -15,6 +15,7 @@ import (
 
 	coreconfig "github.com/leo84927/core/config"
 	"github.com/leo84927/core/rabbitmq"
+	"github.com/rotisserie/eris"
 	"github.com/tidwall/gjson"
 )
 
@@ -128,7 +129,6 @@ func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPa
 	for _, counter := range pair.Counter {
 		// build request
 		url := fmt.Sprintf("https://api3.binance.com/api/v3/ticker/price?symbol=%s%s", pair.Base, counter)
-		log.Println("CryptoCurrencyHandler url:", url)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			publishError(
@@ -197,15 +197,16 @@ func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPa
 }
 
 func publishError(ctx context.Context, errMsg string, publisher rabbitmq.PublishHandler) {
-	log.Println(errMsg)
-
 	body, err := protojson.Marshal(&mqp.Envelope{
 		Type:   mqp.EnvelopeType_TELEGRAM_ERROR,
 		Data:   errMsg,
 		SentAt: time.Now().Unix(),
 	})
 	if err != nil {
-		log.Printf("Publish to telegram, protojson Marshal failed, err: %v\n", err)
+		slog.Error(
+			"publish to telegram, protojson Marshal failed",
+			"error", eris.ToJSON(err, true),
+		)
 		return
 	}
 
@@ -218,11 +219,14 @@ func publishError(ctx context.Context, errMsg string, publisher rabbitmq.Publish
 		5*time.Second,
 	)
 	if err != nil {
-		log.Printf("Publish to telegram failed, err: %v\n", err)
+		slog.Error(
+			"publish to telegram failed",
+			"error", eris.ToJSON(err, true),
+		)
 		return
 	}
 
-	log.Println("Publish error message to telegram finish")
+	slog.Info("publish error message to telegram finish")
 }
 
 func publishSuccess(ctx context.Context, msg []byte, publisher rabbitmq.PublishHandler) {
@@ -232,7 +236,10 @@ func publishSuccess(ctx context.Context, msg []byte, publisher rabbitmq.PublishH
 		SentAt: time.Now().Unix(),
 	})
 	if err != nil {
-		log.Printf("Publish to telegram, protojson Marshal failed, err: %v\n", err)
+		slog.Error(
+			"publish to telegram, protojson Marshal failed",
+			"error", eris.ToJSON(err, true),
+		)
 		return
 	}
 
@@ -245,9 +252,12 @@ func publishSuccess(ctx context.Context, msg []byte, publisher rabbitmq.PublishH
 		5*time.Second,
 	)
 	if err != nil {
-		log.Printf("Publish to telegram failed, err: %v\n", err)
+		slog.Error(
+			"publish to telegram failed",
+			"error", eris.ToJSON(err, true),
+		)
 		return
 	}
 
-	log.Println("Publish success message to telegram finish")
+	slog.Info("publish success message to telegram finish")
 }
