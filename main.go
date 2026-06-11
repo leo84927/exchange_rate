@@ -29,6 +29,7 @@ func main() {
 	coreconfig.InitFromRedis(ctx, "EXCHANGE_RATE")
 	coreconfig.ServiceName = coreconfig.EnvMap[cp.ExchangeRateEnvKey_EXCHANGE_RATE_SERVICE_NAME.String()]
 	config.ExchangeRateApiKey = coreconfig.EnvMap[cp.ExchangeRateEnvKey_EXCHANGE_RATE_API_KEY.String()]
+	config.CoinGeckoApiKey = coreconfig.EnvMap[cp.ExchangeRateEnvKey_EXCHANGE_RATE_COINGECKO_API_KEY.String()]
 	coreconfig.LoadBasicRabbitMQ()
 	coreconfig.LoadCompleteTopology(rabbitmq.Queue{
 		Name: coreconfig.EnvMap[cp.ExchangeRateEnvKey_EXCHANGE_RATE_RABBITMQ_QUEUE.String()],

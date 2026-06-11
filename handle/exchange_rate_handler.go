@@ -19,6 +19,12 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+type supplier struct {
+	host    string
+	base    string
+	counter string
+}
+
 type ExchangeRateHandler interface {
 	Handle(ctx context.Context, pair *erp.CurrencyPair)
 }
@@ -26,23 +32,35 @@ type ExchangeRateHandler interface {
 // 法幣
 type FiatCurrencyHandler struct {
 	publisher rabbitmq.PublishHandler
+	supplier  supplier
 }
 
 // 虛擬貨幣
 type CryptoCurrencyHandler struct {
 	publisher rabbitmq.PublishHandler
+	supplier  supplier
 }
 
 func newHandlerRegistry(publisher rabbitmq.PublishHandler) map[erp.CurrencyType]ExchangeRateHandler {
 	return map[erp.CurrencyType]ExchangeRateHandler{
-		erp.CurrencyType_CURRENCY_TYPE_FIAT:   &FiatCurrencyHandler{publisher: publisher},
-		erp.CurrencyType_CURRENCY_TYPE_CRYPTO: &CryptoCurrencyHandler{publisher: publisher},
+		erp.CurrencyType_CURRENCY_TYPE_FIAT: &FiatCurrencyHandler{
+			publisher: publisher,
+			supplier: supplier{
+				host: "https://v6.exchangerate-api.com/v6/latest/%s",
+			},
+		},
+		erp.CurrencyType_CURRENCY_TYPE_CRYPTO: &CryptoCurrencyHandler{
+			publisher: publisher,
+			supplier: supplier{
+				host: "https://api.coingecko.com/api/v3/simple/price?vs_currencies=%s&ids=%s",
+			},
+		},
 	}
 }
 
 func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair) {
 	// build request
-	url := fmt.Sprintf("https://v6.exchangerate-api.com/v6/latest/%s", pair.Base)
+	url := fmt.Sprintf(f.supplier.host, pair.Base)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -128,7 +146,17 @@ func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair
 func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair) {
 	for _, counter := range pair.Counter {
 		// build request
-		url := fmt.Sprintf("https://api3.binance.com/api/v3/ticker/price?symbol=%s%s", pair.Base, counter)
+		if counter == erp.Currency_USDT {
+			c.supplier.counter = "usd"
+		} else {
+			c.supplier.counter = counter.String()
+		}
+		if pair.Base == erp.Currency_BTC {
+			c.supplier.base = "bitcoin"
+		} else {
+			c.supplier.base = pair.Base.String()
+		}
+		url := fmt.Sprintf(c.supplier.host, c.supplier.counter, c.supplier.base)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			publishError(
@@ -138,6 +166,9 @@ func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPa
 			)
 			return
 		}
+
+		// set header
+		req.Header.Set("x-cg-demo-api-key", config.CoinGeckoApiKey)
 
 		// send request
 		client := &http.Client{}
@@ -166,9 +197,8 @@ func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPa
 		}
 
 		// analyze result
-		symbol := gjson.GetBytes(body, "symbol")
-		price := gjson.GetBytes(body, "price")
-		if !symbol.Exists() || !price.Exists() {
+		price := gjson.GetBytes(body, c.supplier.base+"."+c.supplier.counter)
+		if !price.Exists() {
 			publishError(
 				ctx,
 				fmt.Sprintf("CryptoCurrencyHandler API result error, body: %s", string(body)),
