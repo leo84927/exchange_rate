@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go v1.36.11-20260611074957-c4b1f27a96b9.1
-	github.com/leo84927/core v1.7.1
+	github.com/leo84927/core v1.7.2
 	github.com/rotisserie/eris v0.5.4
 	github.com/tidwall/gjson v1.18.0
 	google.golang.org/protobuf v1.36.11
