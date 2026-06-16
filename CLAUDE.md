@@ -4,7 +4,7 @@
 ## 架構
 
 ```
-config/init.go                ← init() 從 Consul 載入設定、建立 RabbitMQ topology
+config/init.go                ← init() 載入環境變數、建立 RabbitMQ topology
 config/common.go              ← ExchangeRateApiKey
 
 handle/message_handler.go     ← RabbitMQ consumer 進入點，解析 CurrencyPair 後依 CurrencyType 分派 handler
@@ -32,12 +32,12 @@ RabbitMQ message（CurrencyPair proto）
 
 | 類型 | API | 認證 |
 |---|---|---|
-| 法幣 | `https://v6.exchangerate-api.com/v6/latest/{base}` | Bearer token（Consul `EXCHANGE_RATE_API_KEY`） |
-| 加密貨幣 | `https://api3.binance.com/api/v3/ticker/price?symbol={base}{counter}` | 無 |
+| 法幣 | `https://v6.exchangerate-api.com/v6/latest/{base}` | Bearer token（`EXCHANGE_RATE_API_KEY`） |
+| 加密貨幣 | `https://api.coingecko.com/api/v3/simple/price?vs_currencies={counter}&ids={base}` | header x-cg-demo-api-key (`EXCHANGE_RATE_COINGECKO_API_KEY`) |
 
 回應皆以 `gjson` 解析 JSON。
 
-## Consul 設定鍵
+## 設定鍵
 
 | 鍵 | 用途 |
 |---|---|
@@ -45,6 +45,7 @@ RabbitMQ message（CurrencyPair proto）
 | `EXCHANGE_RATE_API_KEY` | exchangerate-api.com 的 API key |
 | `EXCHANGE_RATE_RABBITMQ_QUEUE` | 訂閱的 queue 名稱 |
 | `EXCHANGE_RATE_RABBITMQ_KEY` | routing key |
+| `EXCHANGE_RATE_COINGECKO_API_KEY` | api.coingecko.com 的 API key |
 
 ## 依賴
 
