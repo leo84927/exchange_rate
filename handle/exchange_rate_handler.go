@@ -20,9 +20,7 @@ import (
 )
 
 type supplier struct {
-	host    string
-	base    string
-	counter string
+	host string
 }
 
 type ExchangeRateHandler interface {
@@ -145,18 +143,19 @@ func (f *FiatCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair
 
 func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPair) {
 	for _, counter := range pair.Counter {
+		var supplierCounter, supplierBase string
 		// build request
 		if counter == erp.Currency_USDT {
-			c.supplier.counter = "usd"
+			supplierCounter = "usd"
 		} else {
-			c.supplier.counter = counter.String()
+			supplierCounter = counter.String()
 		}
 		if pair.Base == erp.Currency_BTC {
-			c.supplier.base = "bitcoin"
+			supplierBase = "bitcoin"
 		} else {
-			c.supplier.base = pair.Base.String()
+			supplierBase = pair.Base.String()
 		}
-		url := fmt.Sprintf(c.supplier.host, c.supplier.counter, c.supplier.base)
+		url := fmt.Sprintf(c.supplier.host, supplierCounter, supplierBase)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			publishError(
@@ -197,7 +196,7 @@ func (c *CryptoCurrencyHandler) Handle(ctx context.Context, pair *erp.CurrencyPa
 		}
 
 		// analyze result
-		price := gjson.GetBytes(body, c.supplier.base+"."+c.supplier.counter)
+		price := gjson.GetBytes(body, supplierBase+"."+supplierCounter)
 		if !price.Exists() {
 			publishError(
 				ctx,
