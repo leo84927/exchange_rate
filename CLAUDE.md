@@ -25,17 +25,9 @@ RabbitMQ message（CurrencyPair proto）
   → 包成 Envelope 發布回 RabbitMQ：
       成功 → routing key: telegram.success（EnvelopeType: TELEGRAM_SUCCESS_EXCHANGE_RATE）
       失敗 → routing key: telegram.error（EnvelopeType: TELEGRAM_ERROR）
-  → telegram 服務消費後發送至 Telegram chat
 ```
 
-## 外部 API
-
-| 類型 | API | 認證 |
-|---|---|---|
-| 法幣 | `https://v6.exchangerate-api.com/v6/latest/{base}` | Bearer token（`EXCHANGE_RATE_API_KEY`） |
-| 加密貨幣 | `https://api.coingecko.com/api/v3/simple/price?vs_currencies={counter}&ids={base}` | header x-cg-demo-api-key (`EXCHANGE_RATE_COINGECKO_API_KEY`) |
-
-回應皆以 `gjson` 解析 JSON。
+下游由 telegram 服務接手，見根目錄 `CONTEXT.md` 的訊息流向。
 
 ## 設定鍵
 
@@ -46,9 +38,3 @@ RabbitMQ message（CurrencyPair proto）
 | `EXCHANGE_RATE_RABBITMQ_QUEUE` | 訂閱的 queue 名稱 |
 | `EXCHANGE_RATE_RABBITMQ_KEY` | routing key |
 | `EXCHANGE_RATE_COINGECKO_API_KEY` | api.coingecko.com 的 API key |
-
-## 依賴
-
-- `github.com/tidwall/gjson` — JSON 路徑查詢（解析 API 回應）
-- `github.com/leo84927/core` — 共用基礎建設
-- `buf.build/gen/go/.../scheduler` — proto 定義（CurrencyPair、ExchangeRate、Envelope）
