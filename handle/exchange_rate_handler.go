@@ -14,8 +14,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	coreconfig "github.com/leo84927/core/config"
+	"github.com/leo84927/core/logger"
 	"github.com/leo84927/core/rabbitmq"
-	"github.com/rotisserie/eris"
 	"github.com/tidwall/gjson"
 )
 
@@ -232,10 +232,7 @@ func publishError(ctx context.Context, errMsg string, publisher rabbitmq.Publish
 		SentAt: time.Now().Unix(),
 	})
 	if err != nil {
-		slog.Error(
-			"publish to telegram, protojson Marshal failed",
-			"error", eris.ToJSON(err, true),
-		)
+		logger.Error(ctx, "publish to telegram, protojson Marshal failed", err)
 		return
 	}
 
@@ -248,10 +245,7 @@ func publishError(ctx context.Context, errMsg string, publisher rabbitmq.Publish
 		5*time.Second,
 	)
 	if err != nil {
-		slog.Error(
-			"publish to telegram failed",
-			"error", eris.ToJSON(err, true),
-		)
+		logger.Error(ctx, "publish to telegram failed", err)
 		return
 	}
 
@@ -265,10 +259,7 @@ func publishSuccess(ctx context.Context, msg []byte, publisher rabbitmq.PublishH
 		SentAt: time.Now().Unix(),
 	})
 	if err != nil {
-		slog.Error(
-			"publish to telegram, protojson Marshal failed",
-			"error", eris.ToJSON(err, true),
-		)
+		logger.Error(ctx, "publish to telegram, protojson Marshal failed", err)
 		return
 	}
 
@@ -281,10 +272,7 @@ func publishSuccess(ctx context.Context, msg []byte, publisher rabbitmq.PublishH
 		5*time.Second,
 	)
 	if err != nil {
-		slog.Error(
-			"publish to telegram failed",
-			"error", eris.ToJSON(err, true),
-		)
+		logger.Error(ctx, "publish to telegram failed", err)
 		return
 	}
 

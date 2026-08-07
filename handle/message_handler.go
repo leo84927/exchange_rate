@@ -6,8 +6,8 @@ import (
 
 	erp "buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go/exchange_rate"
 
+	"github.com/leo84927/core/logger"
 	"github.com/leo84927/core/rabbitmq"
-	"github.com/rotisserie/eris"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -21,10 +21,7 @@ func MessageHandler(ctx context.Context, msg rabbitmq.Message, publisher rabbitm
 
 	var currencyPair erp.CurrencyPair
 	if err = protojson.Unmarshal(msg.Body, &currencyPair); err != nil {
-		slog.Error(
-			"message handler json unmarshal failed",
-			"error", eris.ToJSON(err, true),
-		)
+		logger.Error(ctx, "message handler json unmarshal failed", err)
 		return false, err
 	}
 
