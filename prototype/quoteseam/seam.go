@@ -1,16 +1,17 @@
 // Package quoteseam 是 wayfinder ticket #10 的粗胚 —— **丟棄用**，不要 import 進 handle。
+// 它承載本張定案後的介面形狀，供後續實作 session 對照。
 //
-// 它只回答一個問題：「匯率查詢」與「結果發布」的邊界該切在哪。
-// 刻意做到 `go build` 通得過，以確保簽名真的接得上既有的 proto 型別與 core 的 PublishHandler；
-// 所有 body 都是 panic stub，不打算能跑。
+// `go build` / `go vet` 通得過，所有 body 都是 panic stub。
 //
-// 前提（已定案，不在本張重議）：
+// 已定案的前提（不在本張重議）：
+//   - #8：併發歸 core，prefetch 4，work-then-Ack。
 //   - #9：MsgHandler 收斂為 `func(ctx, Message, PublishHandler) error`，requeue 恆 false。
-//   - #9：部分完成算整則成功 —— 這條直接決定了下面 Quote 的回傳型別。
+//   - #9：部分完成算整則成功 —— 直接決定了 QuoteBatch 的存在。
 package quoteseam
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -20,19 +21,21 @@ import (
 )
 
 // ============================================================================
-// 候選 A：批次 —— 一則 CurrencyPair 進，一批結果出
+// 匯率查詢
 // ============================================================================
 
-type BatchQuoter interface {
+// Quoter 的工作單位是**一則 CurrencyPair**，不是一個 base/counter 組合。
+//
+// 選批次而非單筆的理由：exchangerate-api 的 /latest/{base} 一次請求回傳整張
+// conversion_rates 表（現況 exchange_rate_handler.go:104-115 就是這樣用的），
+// 單筆介面會把這個能力丟掉，fiat 從 1 次 HTTP 變 N 次。
+type Quoter interface {
 	Quote(ctx context.Context, pair *erp.CurrencyPair) (QuoteBatch, error)
 }
 
-// QuoteBatch 存在的唯一理由：#9 裁定「部分完成算整則成功，失敗的 counter 仍要告警」。
-// `([]*erp.ExchangeRate, error)` 表達不了這件事 —— 3 成功 1 失敗時 error 該放什麼？
-// 所以邊界上必須有一個型別同時承載兩側。
-//
-// Quote 自己的 error 則保留給「整批都沒戲」：request 建不起來、HTTP 打不通、認證失敗、
-// 供應商回 result != "success"。
+// QuoteBatch 存在的唯一理由是 #9 的「部分完成算整則成功，失敗的 counter 仍要告警」。
+// `([]*erp.ExchangeRate, error)` 表達不了 3 成功 1 失敗 —— error 放了就違反「整則成功」，
+// 不放就丟失告警。所以邊界上必須有一個型別同時承載兩側。
 type QuoteBatch struct {
 	Rates  []*erp.ExchangeRate
 	Failed []CounterFailure
@@ -43,39 +46,66 @@ type CounterFailure struct {
 	Err     error
 }
 
+// Quote 自己的 error 只表達「整批都沒戲」：request 建不起來、HTTP 不通、認證失敗、
+// 供應商回 result != "success"、base 幣別不受供應商支援。
+var ErrUnsupportedCurrency = errors.New("currency not supported by supplier")
+
 // ============================================================================
-// 候選 B：單筆 —— 一次呼叫一個 base/counter，迴圈移到呼叫端
+// 供應商 adapter
 // ============================================================================
 //
-// 型別乾淨得多（沒有 QuoteBatch、沒有 CounterFailure），代價是 fiat 供應商從
-// 1 次 HTTP 變成 N 次：exchangerate-api 的 /latest/{base} 一次就回傳整張
-// conversion_rates 表（見 exchange_rate_handler.go:104-115），單筆介面等於把它丟掉。
-type PairQuoter interface {
-	Quote(ctx context.Context, base, counter erp.Currency) (*erp.ExchangeRate, error)
-}
+// 回傳型別沿用 Contract repo 的 erp.ExchangeRate，不另建內部領域型別。
+// Rate 是 string，**精度由各 adapter 自行決定** —— 這是刻意的差異，不是待統一的不一致：
+// 虛擬貨幣需要比法幣更多的位數。
 
-// ============================================================================
-// 供應商 adapter（以候選 A 的簽名寫）
-// ============================================================================
+// ----------------------------------------------------------------------------
+// fiat —— exchangerate-api.com
+// ----------------------------------------------------------------------------
 
-// fiatQuoter —— exchangerate-api.com。批次天生合身：一次請求拿回整張表。
 type fiatQuoter struct {
-	client *http.Client // 注入點：建構子參數（見 newFiatQuoter），不是方法內部 new
+	client *http.Client
 	host   string
 	apiKey string
 }
 
+// client 是必填建構子參數，不是 functional option：adapter 沒有 client 就不能work，
+// 必填參數誠實表達這件事。順帶讓 #17 的 timeout 有唯一的落點（main.go 建一個
+// 帶 Timeout 的 client 傳進來），而 option 的預設值 http.DefaultClient 的 Timeout 是 0。
 func newFiatQuoter(client *http.Client, host, apiKey string) *fiatQuoter {
 	return &fiatQuoter{client: client, host: host, apiKey: apiKey}
 }
 
+// fiatSymbols：exchangerate-api 用 ISO 4217 代碼，與 enum 名稱**恰好一致**，
+// 所以這張表的價值不在轉換而在**窮舉支援範圍** —— 沒有它，center 誤把 BTC 標成
+// FIAT 時會去打 /latest/BTC，現在則直接 ErrUnsupportedCurrency。
+var fiatSymbols = map[erp.Currency]string{
+	erp.Currency_TWD: "TWD",
+	erp.Currency_USD: "USD",
+	erp.Currency_JPY: "JPY",
+}
+
+func fiatSymbol(c erp.Currency) (string, error) {
+	s, ok := fiatSymbols[c]
+	if !ok {
+		return "", ErrUnsupportedCurrency
+	}
+	return s, nil
+}
+
 func (f *fiatQuoter) Quote(ctx context.Context, pair *erp.CurrencyPair) (QuoteBatch, error) {
-	// http.NewRequestWithContext(ctx, ...) —— 現況 exchange_rate_handler.go:63,159 用的是
-	// http.NewRequest，ctx 根本沒接上，所以 #17 的 timeout 現在放哪都不會生效。
+	// http.NewRequestWithContext(ctx, ...) —— 現況 :63,:159 用的是 http.NewRequest，
+	// ctx 從來沒接上 HTTP 呼叫，所以 #17 的 timeout 不管放哪都不會生效。
+	//
+	// base 不支援 → return QuoteBatch{}, ErrUnsupportedCurrency（整批失敗）
+	// 某個 counter 不支援 → 進 Failed，其餘照走（#9：部分完成）
+	// Rate: fmt.Sprintf("%.5f", rate.Float()) —— 法幣五位小數
 	panic("prototype")
 }
 
-// cryptoQuoter —— api.coingecko.com。
+// ----------------------------------------------------------------------------
+// crypto —— api.coingecko.com
+// ----------------------------------------------------------------------------
+
 type cryptoQuoter struct {
 	client *http.Client
 	host   string
@@ -86,20 +116,8 @@ func newCryptoQuoter(client *http.Client, host, apiKey string) *cryptoQuoter {
 	return &cryptoQuoter{client: client, host: host, apiKey: apiKey}
 }
 
-func (c *cryptoQuoter) Quote(ctx context.Context, pair *erp.CurrencyPair) (QuoteBatch, error) {
-	panic("prototype")
-}
-
-// ----------------------------------------------------------------------------
-// 供應商知識：symbol 對照
-// ----------------------------------------------------------------------------
-//
-// 現況（exchange_rate_handler.go:146-157）是**例外式**的 if：只有 USDT 與 BTC 被特判，
-// 其他一律 fallback 到 enum 名稱（大寫）。兩個後果：
-//   1. 新增第三種 crypto 就是再加一條 if，而漏加不會編譯失敗，只會查詢時查不到。
-//   2. `Currency_TWD = 0` 是零值 —— base 沒設就靜靜地當成 TWD 去查。
-//
-// 變體 A1：查表，缺項即錯誤（把「這個供應商支援哪些幣」變成可窮舉的資料）
+// CoinGecko 的兩個參數語意不同，所以是兩張表，不是一張。
+// ids = 被報價的資產；vs_currencies = 報價幣別。
 var coinGeckoIDs = map[erp.Currency]string{
 	erp.Currency_BTC: "bitcoin",
 }
@@ -108,27 +126,63 @@ var coinGeckoVsCurrencies = map[erp.Currency]string{
 	erp.Currency_USD: "usd",
 	erp.Currency_TWD: "twd",
 	erp.Currency_JPY: "jpy",
-	// USDT → "usd"：這**不是** symbol 拼寫差異，是一個領域假設（USDT 錨定 USD 為 1:1）。
-	// 現況把它藏在 exchange_rate_handler.go:148 的 if 裡。
+	// CoinGecko 沒有 USDT/BTC 這個交易對，vs_currencies 不吃 usdt，
+	// 因此以 USD 報價代替。這是**供應商限制**造成的替代，不是拼寫差異 ——
+	// 後果是回報的 BTC/USDT 實際上是 BTC/USD 的價格。
 	erp.Currency_USDT: "usd",
 }
 
-// 變體 A2：維持 switch，但缺項回 error 而非 fallback
-func coinGeckoID(c erp.Currency) (string, error) { panic("prototype") }
+func coinGeckoID(c erp.Currency) (string, error) {
+	s, ok := coinGeckoIDs[c]
+	if !ok {
+		return "", ErrUnsupportedCurrency
+	}
+	return s, nil
+}
+
+func coinGeckoVsCurrency(c erp.Currency) (string, error) {
+	s, ok := coinGeckoVsCurrencies[c]
+	if !ok {
+		return "", ErrUnsupportedCurrency
+	}
+	return s, nil
+}
+
+func (c *cryptoQuoter) Quote(ctx context.Context, pair *erp.CurrencyPair) (QuoteBatch, error) {
+	// 現況 :183 的 defer resp.Body.Close() 在 for 迴圈裡 —— defer 累積到函式返回才執行，
+	// N 個 counter 就是 N 個 body 同時開著。每個 counter 的請求要抽成獨立函式。
+	//
+	// Rate: price.String() —— 原樣帶走，虛擬貨幣不截斷
+	panic("prototype")
+}
+
+// ----------------------------------------------------------------------------
+// registry
+// ----------------------------------------------------------------------------
+
+// 保留 newHandlerRegistry 這個 factory，改成回傳 adapter。
+// map 查找的 ok 正好給了 #9 要求的「無對應 CurrencyType 回 error、不可 panic」。
+func quoterRegistry(client *http.Client) map[erp.CurrencyType]Quoter {
+	return map[erp.CurrencyType]Quoter{
+		erp.CurrencyType_CURRENCY_TYPE_FIAT:   newFiatQuoter(client, "", ""),
+		erp.CurrencyType_CURRENCY_TYPE_CRYPTO: newCryptoQuoter(client, "", ""),
+	}
+}
 
 // ============================================================================
-// 結果發布 module
+// 結果發布
 // ============================================================================
-//
-// 這個介面吸收了 Envelope 組裝 **與** routing key 的選擇（telegram.success / telegram.error），
-// 呼叫端因此完全不提 routing key —— 這是本張要裁的其中一格。
+
+// ResultPublisher 吸收 Envelope 組裝 **與** routing key 的選擇。
+// EnvelopeType 與 routing key 永遠成對出現（TELEGRAM_SUCCESS_EXCHANGE_RATE ↔
+// telegram.success），分開讓呼叫端指定就是給它一個配錯的機會。
 type ResultPublisher interface {
 	PublishRate(ctx context.Context, rate *erp.ExchangeRate) error
 	PublishFailure(ctx context.Context, reason string) error
 }
 
 type envelopePublisher struct {
-	publish        rabbitmq.PublishHandler // core 的 func(ctx, exchange, key string, body []byte, maxRetries uint, maxElapsedTime time.Duration) error
+	publish        rabbitmq.PublishHandler
 	exchange       string
 	maxRetries     uint
 	maxElapsedTime time.Duration
@@ -144,45 +198,36 @@ func newEnvelopePublisher(publish rabbitmq.PublishHandler, exchange string) *env
 }
 
 func (p *envelopePublisher) PublishRate(ctx context.Context, rate *erp.ExchangeRate) error {
-	// EnvelopeType_TELEGRAM_SUCCESS_EXCHANGE_RATE + routing key "telegram.success"
-	// 這兩者永遠成對出現 —— 分開讓呼叫端指定，就是給呼叫端一個配錯的機會。
-	_ = mqp.EnvelopeType_TELEGRAM_SUCCESS_EXCHANGE_RATE
+	_ = mqp.EnvelopeType_TELEGRAM_SUCCESS_EXCHANGE_RATE // ↔ "telegram.success"
 	panic("prototype")
 }
 
 func (p *envelopePublisher) PublishFailure(ctx context.Context, reason string) error {
-	_ = mqp.EnvelopeType_TELEGRAM_ERROR
+	_ = mqp.EnvelopeType_TELEGRAM_ERROR // ↔ "telegram.error"
 	panic("prototype")
 }
 
 // ============================================================================
-// 組合：新的 MessageHandler（#9 的 error-only 簽名）
+// 組合
 // ============================================================================
-
-// registry 保留成回傳 adapter 的 factory（本張要裁的另一格：留還是拿掉）。
-func quoterRegistry(client *http.Client) map[erp.CurrencyType]BatchQuoter {
-	return map[erp.CurrencyType]BatchQuoter{
-		erp.CurrencyType_CURRENCY_TYPE_FIAT:   newFiatQuoter(client, "", ""),
-		erp.CurrencyType_CURRENCY_TYPE_CRYPTO: newCryptoQuoter(client, "", ""),
-	}
-}
 
 func MessageHandler(ctx context.Context, msg rabbitmq.Message, publish rabbitmq.PublishHandler) error {
 	var pair erp.CurrencyPair
 	// protojson.Unmarshal(msg.Body, &pair) → return err（#9：訊息無法解析 = 丟棄）
 
+	pub := newEnvelopePublisher(publish, "")
+
 	quoter, ok := quoterRegistry(nil)[pair.Type]
 	if !ok {
-		// #9：無對應 handler 要回 error，不可 panic
-		panic("prototype")
+		// #9：無對應 handler 回 error，不可 panic
+		return errors.New("no quoter for currency type")
 	}
-
-	pub := newEnvelopePublisher(publish, "")
 
 	batch, err := quoter.Quote(ctx, &pair)
 	if err != nil {
-		// 整批失敗：既要告警（telegram.error），又要回 error 讓 core 標 span 為 Error。
-		// **兩者都要做**，這是本張的一格：誰負責 publish 這則告警 —— handler 還是 core？
+		// 整批失敗：告警與 return err **兩件都做**。
+		// PublishFailure 讓使用者知道，return err 讓 core 標 span 為 Error
+		// （#9：SetStatus(codes.Error) 是 Grafana 上唯一標記失敗的地方）。
 		_ = pub.PublishFailure(ctx, err.Error())
 		return err
 	}
@@ -194,6 +239,6 @@ func MessageHandler(ctx context.Context, msg rabbitmq.Message, publish rabbitmq.
 		_ = pub.PublishRate(ctx, r)
 	}
 
-	// #9：部分完成算整則成功 → 這裡回 nil，即使 batch.Failed 非空。
+	// #9：部分完成算整則成功 → 即使 Failed 非空也回 nil
 	return nil
 }
