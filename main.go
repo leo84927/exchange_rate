@@ -2,45 +2,79 @@ package main
 
 import (
 	"context"
-	"exchange_rate/config"
-	"exchange_rate/handle"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	env "buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go/env"
 	coreconfig "github.com/leo84927/core/config"
 	"github.com/leo84927/core/initialize"
-	"github.com/leo84927/core/rabbitmq"
+
+	"exchange_rate/config"
+	"exchange_rate/handle"
 )
 
+/*
+ * 對外查匯率的單次上限
+ *
+ * worker 同步化之後，一個掛住的對外請求會占住一格 prefetch；四格用完服務就靜默停止消費。
+ */
+const supplierTimeout = 5 * time.Second
+
+// 一個 client 給兩個 adapter：超時只有一個落點，改一次兩個供應商一起改
+func newSupplierClient() *http.Client {
+	return &http.Client{Timeout: supplierTimeout}
+}
+
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+// os.Exit 不跑 defer，所以整個啟動流程收在 run 裡，讓 Close 有機會配對執行
+func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	coreconfig.InitFromRedis(ctx, "EXCHANGE_RATE")
-	coreconfig.ServiceName = coreconfig.EnvMap[env.ExchangeRateEnvKey_EXCHANGE_RATE_SERVICE_NAME.String()]
-	config.ExchangeRateApiKey = coreconfig.EnvMap[env.ExchangeRateEnvKey_EXCHANGE_RATE_API_KEY.String()]
-	config.CoinGeckoApiKey = coreconfig.EnvMap[env.ExchangeRateEnvKey_EXCHANGE_RATE_COINGECKO_API_KEY.String()]
-	coreconfig.LoadBasicRabbitMQ()
-	coreconfig.LoadCompleteTopology(rabbitmq.Queue{
-		Name: coreconfig.EnvMap[env.ExchangeRateEnvKey_EXCHANGE_RATE_RABBITMQ_QUEUE.String()],
-		Keys: []string{
-			coreconfig.EnvMap[env.ExchangeRateEnvKey_EXCHANGE_RATE_RABBITMQ_KEY.String()],
+	settings, err := coreconfig.Load(ctx, coreconfig.Spec{
+		Prefix:         "EXCHANGE_RATE",
+		ServiceNameKey: env.ExchangeRateEnvKey_EXCHANGE_RATE_SERVICE_NAME,
+		Queue: &coreconfig.QueueKeys{
+			NameKey:    env.ExchangeRateEnvKey_EXCHANGE_RATE_RABBITMQ_QUEUE,
+			RoutingKey: env.ExchangeRateEnvKey_EXCHANGE_RATE_RABBITMQ_KEY,
 		},
-	})
-
-	app, err := initialize.New(ctx, &initialize.App{
-		MQWorker: initialize.MQWorker{
-			MsgHandler: handle.MessageHandler,
+		ServiceKeys: []fmt.Stringer{
+			env.ExchangeRateEnvKey_EXCHANGE_RATE_API_KEY,
+			env.ExchangeRateEnvKey_EXCHANGE_RATE_COINGECKO_API_KEY,
 		},
 	})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return
+		return err
+	}
+
+	// &handle.Worker
+	worker := handle.NewWorker(
+		newSupplierClient(),
+		config.New(settings.Service),
+		settings.RabbitMQ.Topology.Exchange.Name,
+	)
+
+	app, err := initialize.New(ctx, settings, &initialize.App{
+		MQWorker: initialize.MQWorker{
+			MsgHandler: worker.Handle,
+		},
+	})
+	if err != nil {
+		return err
 	}
 	defer app.Close(ctx)
 
 	app.Run(ctx)
+
+	return nil
 }
