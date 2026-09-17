@@ -10,8 +10,8 @@ import (
 	erp "buf.build/gen/go/leo84927-proto/scheduler/protocolbuffers/go/exchange_rate"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/leo84927/core/logger"
-	"github.com/leo84927/core/rabbitmq"
+	"github.com/leo84927/core/v2/logger"
+	"github.com/leo84927/core/v2/rabbitmq"
 
 	"exchange_rate/config"
 )
