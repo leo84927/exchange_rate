@@ -74,7 +74,5 @@ func run() error {
 	}
 	defer app.Close(ctx)
 
-	app.Run(ctx)
-
-	return nil
+	return app.Run(ctx)
 }
