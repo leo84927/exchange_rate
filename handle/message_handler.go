@@ -42,7 +42,7 @@ func (w *Worker) Handle(ctx context.Context, msg rabbitmq.Message, publish rabbi
 
 	var pair erp.CurrencyPair
 	if err := protojson.Unmarshal(msg.Body, &pair); err != nil {
-		// 連 CurrencyPair 都拼不出來，就沒有可以告警的對象，只能丟棄
+		// 連 CurrencyPair 都拼不出來，就沒有可以發錯誤通知的對象，只能丟棄
 		return fmt.Errorf("unmarshal currency pair: %w", err)
 	}
 
@@ -70,7 +70,7 @@ func (w *Worker) Handle(ctx context.Context, msg rabbitmq.Message, publish rabbi
 		}
 
 		/*
-		 * 查詢（整批）失敗時（quoteErr != nil），告警與回傳 error 兩件都做
+		 * 查詢（整批）失敗時（quoteErr != nil），發錯誤通知與回傳 error 兩件都做
 		 * 前者讓使用者知道，後者讓 core 把 span 標為 Error
 		 */
 		if err := publisher.PublishFailure(ctx, quoteErr.Error()); err != nil {

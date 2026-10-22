@@ -13,7 +13,7 @@ import (
 var ErrUnsupportedCurrency = errors.New("currency not supported by supplier")
 
 /*
- * QuoteBatch 存在理由是「部分完成算整則成功，失敗的 counter 仍要告警」。
+ * QuoteBatch 存在理由是「部分完成算整則成功，失敗的 counter 仍要發錯誤通知」。
  *
  * 回傳型別沿用 Contract repo 的 erp.ExchangeRate，不另建內部領域型別。
  */

@@ -324,10 +324,10 @@ func TestHandlePartialFailureDeliversTheRestAndReturnsNil(t *testing.T) {
 // ─────────────────────────────────────────────
 
 /*
- * 整批失敗時告警與回傳 error 兩件都做：
+ * 整批失敗時發錯誤通知與回傳 error 兩件都做：
  * 前者讓使用者知道，後者讓 core 把 span 標為 Error（Grafana 上唯一標記失敗的地方）。
  */
-func TestHandleWholeBatchFailureAlarmsAndReturnsError(t *testing.T) {
+func TestHandleWholeBatchFailureNotifiesAndReturnsError(t *testing.T) {
 	stub := newSupplierStub(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"result":"error","error-type":"invalid-key"}`))
@@ -381,7 +381,7 @@ func TestHandleCryptoMidBatchFailureStillDeliversEarlierRates(t *testing.T) {
 	assertRequestCount(t, stub, 2)
 	assertMessageCount(t, recorder, 2)
 
-	// 第一個 counter 的匯率照樣送達，第二個以整批失敗告警
+	// 第一個 counter 的匯率照樣送達，第二個以整批失敗發出錯誤通知
 	assertEnvelope(t, recorder.messages[0], successRoutingKey, mqp.EnvelopeType_TELEGRAM_SUCCESS_EXCHANGE_RATE)
 	if got := decodeRate(t, recorder.messages[0]).CounterCurrency; got != erp.Currency_USD {
 		t.Errorf("送達的 CounterCurrency = %v, 期望 %v", got, erp.Currency_USD)
@@ -530,7 +530,7 @@ func TestHandleRejectsPairWithoutCounter(t *testing.T) {
 	assertMessageCount(t, recorder, 0)
 }
 
-// 訊息無法解析就回 error（丟棄）—— 連 CurrencyPair 都拼不出來時，沒有可以告警的對象
+// 訊息無法解析就回 error（丟棄）—— 連 CurrencyPair 都拼不出來時，沒有可以發錯誤通知的對象
 func TestHandleRejectsUnparsableMessage(t *testing.T) {
 	stub := newSupplierStub(t, func(w http.ResponseWriter, _ *http.Request) {
 		t.Error("解析不出來的訊息不該送出任何請求")
